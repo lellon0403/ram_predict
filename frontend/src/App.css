@@ -270,6 +270,71 @@ body {
   line-height: 1.6;
 }
 
+/* ── 히어로 영역 ──────────────────────────────────────────────────────────── */
+.hero-area {
+  text-align: center;
+  padding: 24px 0 32px;
+}
+
+.hero-icon {
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: 16px;
+}
+
+.hero-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+}
+
+.hero-desc {
+  font-size: 15px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+/* ── 입력 라벨 ────────────────────────────────────────────────────────────── */
+.input-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 10px;
+  letter-spacing: 0.2px;
+}
+
+/* ── 포맷 힌트 (입력 박스 안) ─────────────────────────────────────────────── */
+.input-formatted {
+  font-size: 14px;
+  color: #475569;
+  white-space: nowrap;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+/* ── 입력 안내 메시지 ─────────────────────────────────────────────────────── */
+.input-hint {
+  text-align: center;
+  font-size: 13px;
+  color: #334155;
+  margin-top: 18px;
+}
+
+/* ── 결과 영역 (페이드인) ─────────────────────────────────────────────────── */
+.results-area {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeSlideIn .35s ease both;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── 반응형 ───────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .card { padding: 20px 18px; }
