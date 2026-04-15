@@ -18,10 +18,11 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
     <div style={{
-      background: '#1e293b', border: '1px solid #334155',
-      borderRadius: 10, padding: '10px 14px', color: '#f1f5f9', fontSize: 13,
+      background: '#fff', border: '1.5px solid #bfdbfe',
+      borderRadius: 10, padding: '10px 14px', color: '#1e293b', fontSize: 13,
+      boxShadow: '0 4px 12px rgba(37,99,235,0.12)',
     }}>
-      <p style={{ margin: '0 0 6px', color: '#94a3b8', fontWeight: 600 }}>{label}</p>
+      <p style={{ margin: '0 0 6px', color: '#64748b', fontWeight: 600 }}>{label}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ margin: '2px 0', color: p.color }}>
           {p.name}: <strong>₩{Number(p.value).toLocaleString()}</strong>
