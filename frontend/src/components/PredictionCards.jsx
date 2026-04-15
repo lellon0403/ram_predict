@@ -5,43 +5,43 @@ export default function PredictionCards({ predictions, currentPrice, targetPrice
   if (!predictions) return null
 
   return (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
       {Object.entries(predictions).map(([key, val]) => {
-        const diff = currentPrice ? val.price - currentPrice : null
+        const diff    = currentPrice ? val.price - currentPrice : null
         const diffPct = currentPrice ? ((val.price - currentPrice) / currentPrice * 100) : null
         const vsTarget = targetPrice ? val.price - targetPrice : null
-        const rising = diff !== null && diff > 0
+        const rising   = diff !== null && diff > 0
 
         return (
           <div key={key} style={{
             flex: '1 1 200px',
-            background: '#1e293b',
-            borderRadius: 14,
-            padding: '20px 22px',
-            border: `1px solid ${rising ? '#f9731644' : '#3b82f644'}`,
-            transition: 'transform .15s',
+            background: '#f8faff',
+            borderRadius: 12,
+            padding: '18px 20px',
+            border: `1.5px solid ${rising ? '#fca5a5' : '#86efac'}`,
+            boxShadow: '0 2px 8px rgba(37,99,235,0.06)',
           }}>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{ICONS[key]}</div>
-            <div style={{ color: '#94a3b8', fontSize: 13, marginBottom: 4 }}>
+            <div style={{ fontSize: 20, marginBottom: 5 }}>{ICONS[key]}</div>
+            <div style={{ color: '#64748b', fontSize: 12.5, marginBottom: 4 }}>
               {LABELS[key]} ({val.date})
             </div>
-            <div style={{ color: '#f1f5f9', fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>
+            <div style={{ color: '#1e40af', fontSize: 24, fontWeight: 800, letterSpacing: -0.5 }}>
               ₩{val.price.toLocaleString()}
             </div>
 
-            {/* 현재가 대비 */}
             {diff !== null && (
-              <div style={{ marginTop: 8, fontSize: 13, color: rising ? '#f87171' : '#4ade80' }}>
+              <div style={{ marginTop: 7, fontSize: 13, color: rising ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
                 현재 대비 {rising ? '▲' : '▼'} ₩{Math.abs(diff).toLocaleString()}
-                <span style={{ marginLeft: 4, opacity: 0.75 }}>({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)</span>
+                <span style={{ marginLeft: 4, fontWeight: 400, opacity: 0.8 }}>
+                  ({diffPct > 0 ? '+' : ''}{diffPct.toFixed(1)}%)
+                </span>
               </div>
             )}
 
-            {/* 목표가 대비 */}
             {vsTarget !== null && (
               <div style={{
-                marginTop: 6, fontSize: 12,
-                color: vsTarget <= 0 ? '#4ade80' : '#94a3b8',
+                marginTop: 5, fontSize: 12,
+                color: vsTarget <= 0 ? '#15803d' : '#64748b',
                 fontWeight: vsTarget <= 0 ? 700 : 400,
               }}>
                 {vsTarget <= 0
