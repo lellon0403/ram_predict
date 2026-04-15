@@ -47,12 +47,14 @@ def _predict_n_days(model, meta, last_returns_sc: np.ndarray, last_price: float,
     ret_std  = meta['ret_std']
 
     for _ in range(n):
-        x       = window[-WINDOW_SIZE:].reshape(1, -1)
-        r_sc    = float(model.predict(x)[0])
+        # 입력 클리핑: polynomial 특성이 overflow 나지 않도록 ±3 sigma 이내로 제한
+        x_raw   = np.clip(window[-WINDOW_SIZE:], -3.0, 3.0).reshape(1, -1)
+        r_sc    = float(model.predict(x_raw)[0])
+        r_sc    = np.clip(r_sc, -3.0, 3.0)          # 출력도 클리핑
         # 역정규화 → 실제 로그 수익률
         log_ret = r_sc * ret_std + ret_mean
-        # 로그 수익률 클리핑 (하루 ±30% 이상 변동 차단)
-        log_ret = max(-0.30, min(0.30, log_ret))
+        # 하루 ±20% 이상 변동 차단
+        log_ret = max(-0.20, min(0.20, log_ret))
         price   = price * np.exp(log_ret)
         results.append(price)
         window = np.append(window, r_sc)

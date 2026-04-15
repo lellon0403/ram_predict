@@ -13,7 +13,9 @@ NOTE: Python 3.14는 TensorFlow 미지원 → scikit-learn 사용
 
 import os
 import json
+import warnings
 import numpy as np
+warnings.filterwarnings('ignore', category=RuntimeWarning)
 import pandas as pd
 import joblib
 from sklearn.linear_model import Ridge
