@@ -6,24 +6,17 @@ import os
 import json
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+import joblib
 from datetime import date, timedelta
 
 MODEL_DIR   = os.path.join(os.path.dirname(__file__), '..', 'saved_model')
 DATA_PATH   = os.path.join(os.path.dirname(__file__), '..', 'data', 'ram_prices.csv')
+MODEL_PATH  = os.path.join(MODEL_DIR, 'model.joblib')
+SCALER_PATH = os.path.join(MODEL_DIR, 'scaler.json')
 WINDOW_SIZE = 30
 
 
-# ── 스케일러 ───────────────────────────────────────────────────────────────────
-def _scale(values, scaler):
-    return (values - scaler['min']) / (scaler['max'] - scaler['min'] + 1e-9)
-
-
-def _unscale(values, scaler):
-    return values * (scaler['max'] - scaler['min'] + 1e-9) + scaler['min']
-
-
-# ── 모델 로더 (싱글톤) ─────────────────────────────────────────────────────────
+# ── 싱글톤 캐시 ───────────────────────────────────────────────────────────────
 _model  = None
 _scaler = None
 
@@ -31,39 +24,35 @@ _scaler = None
 def _load_artifacts():
     global _model, _scaler
     if _model is None:
-        model_path  = os.path.join(MODEL_DIR, 'model.keras')
-        scaler_path = os.path.join(MODEL_DIR, 'scaler.json')
-
-        if not os.path.exists(model_path):
+        if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(
-                f"모델 파일이 없습니다: {model_path}\n"
-                "먼저 `python model/trainer.py` 를 실행하세요."
+                f"모델 파일이 없습니다: {MODEL_PATH}\n"
+                "먼저 POST /retrain 또는 `python model/trainer.py` 를 실행하세요."
             )
-
-        _model = tf.keras.models.load_model(model_path)
-
-        with open(scaler_path) as f:
+        _model = joblib.load(MODEL_PATH)
+        with open(SCALER_PATH) as f:
             _scaler = json.load(f)
-
     return _model, _scaler
 
 
-# ── 핵심 예측 함수 ─────────────────────────────────────────────────────────────
-def _predict_n_days(model, scaler, last_window: np.ndarray, n: int) -> list[float]:
+# ── 예측 ──────────────────────────────────────────────────────────────────────
+def _predict_n_days(model, scaler, last_window_sc: np.ndarray, n: int) -> list:
     """
-    last_window: 정규화된 최근 WINDOW_SIZE 일 가격 배열
-    n          : 예측할 날 수
-    반환       : n 일간 예측 가격(원화) 리스트
+    슬라이딩 윈도우로 n일 뒤까지 순차 예측
+    last_window_sc: 정규화된 최근 WINDOW_SIZE 일 가격
+    반환: 원화 가격 리스트 (길이 n)
     """
-    window = last_window.copy().astype(np.float32)
+    window = last_window_sc.copy()
     results = []
+    mn, mx = scaler['min'], scaler['max']
 
     for _ in range(n):
-        x = window[-WINDOW_SIZE:].reshape(1, WINDOW_SIZE)
-        pred_scaled = float(model.predict(x, verbose=0)[0][0])
-        pred_price  = float(_unscale(np.array([pred_scaled]), scaler)[0])
+        x = window[-WINDOW_SIZE:].reshape(1, -1)
+        pred_sc = float(model.predict(x)[0])
+        pred_sc = max(0.0, min(1.0, pred_sc))          # 범위 클리핑
+        pred_price = pred_sc * (mx - mn) + mn
         results.append(pred_price)
-        window = np.append(window, pred_scaled)
+        window = np.append(window, pred_sc)
 
     return results
 
@@ -73,8 +62,8 @@ def get_predictions() -> dict:
     """
     반환 구조:
     {
-      "history":     [{"date": "YYYY-MM-DD", "price": 82000}, ...],
-      "forecast":    [{"date": "YYYY-MM-DD", "price": 47200}, ...],  # 90일치 일별
+      "history":  [{"date": "YYYY-MM-DD", "price": 82000}, ...],
+      "forecast": [{"date": "YYYY-MM-DD", "price": 47200}, ...],   # 90일 일별
       "predictions": {
           "1week":   {"date": "YYYY-MM-DD", "price": 47200},
           "1month":  {"date": "YYYY-MM-DD", "price": 45800},
@@ -84,29 +73,26 @@ def get_predictions() -> dict:
     """
     model, scaler = _load_artifacts()
 
-    # 히스토리 로드
     df = pd.read_csv(DATA_PATH)
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date').reset_index(drop=True)
 
-    prices      = df['price'].values.astype(np.float32)
-    prices_sc   = _scale(prices, scaler)
+    prices    = df['price'].values.astype(np.float64)
+    mn, mx    = scaler['min'], scaler['max']
+    prices_sc = (prices - mn) / (mx - mn)
+
     last_window = prices_sc[-WINDOW_SIZE:]
     last_date   = df['date'].iloc[-1].date()
 
-    # 90일(3개월) 예측
+    # 90일 예측
     forecast_prices = _predict_n_days(model, scaler, last_window, 90)
+    forecast_dates  = [last_date + timedelta(days=i + 1) for i in range(90)]
 
-    # 날짜 생성
-    forecast_dates = [last_date + timedelta(days=i + 1) for i in range(90)]
-
-    # 일별 예측 리스트
     forecast = [
         {"date": d.isoformat(), "price": round(p)}
         for d, p in zip(forecast_dates, forecast_prices)
     ]
 
-    # 포인트 예측
     def pick(days):
         return {
             "date":  forecast_dates[days - 1].isoformat(),
@@ -114,7 +100,7 @@ def get_predictions() -> dict:
         }
 
     return {
-        "history":  [
+        "history": [
             {"date": row['date'].date().isoformat(), "price": int(row['price'])}
             for _, row in df.iterrows()
         ],
