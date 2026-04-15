@@ -4,6 +4,3 @@ scikit-learn>=1.4.0
 numpy>=1.26.0
 pandas>=2.2.0
 joblib>=1.3.0
-
-# Python 3.12 환경으로 전환 시 아래 주석 해제
-# tensorflow>=2.15.0
