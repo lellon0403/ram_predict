@@ -1,12 +1,13 @@
 """
 Samsung DDR5 16GB RAM 가격 예측 모델 학습 스크립트
-선형 예측 알고리즘 (Log-return Linear Regression)
+알고리즘: 선형 예측 모델 (Linear Regression)
 
-핵심 아이디어:
-  - 가격 수준(level)이 아니라 전일 대비 변화율(log-return)을 예측
-  - r_t = ln(price_t) - ln(price_{t-1})
-  - 스케일 불변 → 저가(48K)와 고가(320K) 구간 모두 균일하게 학습
-  - 예측 시 마지막 실제 가격에 누적 수익률을 적용하여 원화 환산
+구조:
+  1. 가격을 로그 수익률로 변환  r_t = ln(p_t) - ln(p_{t-1})
+  2. 최근 30일 수익률 → 다음날 수익률 예측  (슬라이딩 윈도우)
+  3. 모델: StandardScaler + Ridge(alpha=0.5)
+       - PolynomialFeatures 없음 → 입력과 출력이 선형 관계 유지
+       - Ridge = 정규화(L2) 선형 회귀 → 과적합 방지
 
 NOTE: Python 3.14는 TensorFlow 미지원 → scikit-learn 사용
 """
@@ -19,16 +20,15 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 import pandas as pd
 import joblib
 from sklearn.linear_model import Ridge
-from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import mean_absolute_error
 
-WINDOW_SIZE  = 30
-POLY_DEGREE  = 2
-DATA_PATH    = os.path.join(os.path.dirname(__file__), '..', 'data', 'ram_prices.csv')
-MODEL_DIR    = os.path.join(os.path.dirname(__file__), '..', 'saved_model')
-MODEL_PATH   = os.path.join(MODEL_DIR, 'model.joblib')
-META_PATH    = os.path.join(MODEL_DIR, 'scaler.json')
+WINDOW_SIZE = 30
+DATA_PATH   = os.path.join(os.path.dirname(__file__), '..', 'data', 'ram_prices.csv')
+MODEL_DIR   = os.path.join(os.path.dirname(__file__), '..', 'saved_model')
+MODEL_PATH  = os.path.join(MODEL_DIR, 'model.joblib')
+META_PATH   = os.path.join(MODEL_DIR, 'scaler.json')
 
 
 def make_dataset(returns: np.ndarray, window: int):
@@ -42,7 +42,7 @@ def make_dataset(returns: np.ndarray, window: int):
 def train():
     print("=" * 60)
     print("Samsung DDR5 16GB 가격 예측 모델 학습 시작")
-    print(f"알고리즘: Log-return + Polynomial(degree={POLY_DEGREE}) + Ridge")
+    print("알고리즘: 선형 예측 모델 (Log-return + StandardScaler + Ridge)")
     print("=" * 60)
 
     df = pd.read_csv(DATA_PATH)
@@ -54,9 +54,8 @@ def train():
     print(f"총 {len(prices)}일, 가격 범위: {prices.min():,.0f} ~ {prices.max():,.0f} 원")
 
     # 로그 수익률: r_t = ln(p_t) - ln(p_{t-1})
-    log_returns = np.diff(np.log(prices))          # 길이 N-1
+    log_returns = np.diff(np.log(prices))
 
-    # 정규화 파라미터 (로그 수익률의 mean/std)
     ret_mean = float(log_returns.mean())
     ret_std  = float(log_returns.std())
     returns_sc = (log_returns - ret_mean) / (ret_std + 1e-9)
@@ -74,24 +73,20 @@ def train():
     y_train, y_val = y[:split], y[split:]
     print(f"학습 샘플: {len(X_train)}, 검증 샘플: {len(X_val)}")
 
+    # 선형 모델: StandardScaler → Ridge (PolynomialFeatures 없음)
     model = Pipeline([
-        ('poly',  PolynomialFeatures(degree=POLY_DEGREE, include_bias=True)),
         ('scl',   StandardScaler()),
         ('ridge', Ridge(alpha=0.5)),
     ])
     model.fit(X_train, y_train)
 
     # 검증 MAE (원화 환산)
-    # 검증 구간의 실제 가격 추출 (window+split 번째 이후)
-    val_start_idx = split + WINDOW_SIZE + 1   # +1 은 returns 의 오프셋
+    val_start_idx = split + WINDOW_SIZE + 1
     actual_prices = prices[val_start_idx: val_start_idx + len(y_val)]
+    prev_prices   = prices[val_start_idx - 1: val_start_idx - 1 + len(y_val)]
 
-    y_pred_sc  = model.predict(X_val)
-    pred_log_r = y_pred_sc * ret_std + ret_mean
-    true_log_r = y_val     * ret_std + ret_mean
-
-    # 이전 실제가격에 예측 수익률 적용
-    prev_prices = prices[val_start_idx - 1: val_start_idx - 1 + len(y_val)]
+    y_pred_sc   = model.predict(X_val)
+    pred_log_r  = y_pred_sc * ret_std + ret_mean
     pred_prices = prev_prices * np.exp(pred_log_r)
     mae = mean_absolute_error(actual_prices, pred_prices)
 
