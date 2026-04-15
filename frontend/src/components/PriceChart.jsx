@@ -1,7 +1,6 @@
 import {
   ComposedChart,
   Area,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -11,8 +10,6 @@ import {
   ResponsiveContainer,
   ReferenceDot,
 } from 'recharts'
-
-const fmt = (v) => `₩${Number(v).toLocaleString()}`
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
