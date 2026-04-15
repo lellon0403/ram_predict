@@ -4,7 +4,9 @@
 
 import os
 import json
+import warnings
 import numpy as np
+warnings.filterwarnings('ignore', category=RuntimeWarning)
 import pandas as pd
 import joblib
 from datetime import date, timedelta
