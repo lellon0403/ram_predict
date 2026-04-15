@@ -23,7 +23,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})   # React / n8n 연동 위해 전
 # ── 헬퍼: 모델 존재 여부 확인 ──────────────────────────────────────────────────
 def _model_trained() -> bool:
     model_path = os.path.join(
-        os.path.dirname(__file__), 'saved_model', 'model.keras'
+        os.path.dirname(__file__), 'saved_model', 'model.joblib'
     )
     return os.path.exists(model_path)
 
