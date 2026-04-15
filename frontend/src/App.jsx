@@ -6,12 +6,12 @@ import Recommendation from './components/Recommendation'
 import './App.css'
 
 export default function App() {
-  const [data, setData]          = useState(null)
-  const [loading, setLoading]    = useState(true)
-  const [error, setError]        = useState(null)
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
   const [inputRaw, setInputRaw]   = useState('')    // 숫자 문자열 (콤마 없음)
-  const [targetPrice, setTarget]  = useState(null)  // Number or null
-  const [submitted, setSubmitted] = useState(false) // 전송 버튼 눌렀는지
+  const [targetPrice, setTarget]  = useState(null)  // 전송된 목표가
+  const [submitted, setSubmitted] = useState(false) // 예측하기 버튼 눌렀는지
 
   useEffect(() => {
     axios.post('/api/predict')
@@ -27,25 +27,48 @@ export default function App() {
 
   const currentPrice = data?.history?.at(-1)?.price ?? null
 
-  // 입력: 숫자만 허용, 콤마 없이 저장
+  // 입력 변경 시 submitted 리셋 (다시 버튼 눌러야 함)
   const handleInput = (e) => {
     const raw = e.target.value.replace(/[^0-9]/g, '')
     setInputRaw(raw)
-    setTarget(raw ? Number(raw) : null)
+    setSubmitted(false)
   }
 
-  const clearInput = () => { setInputRaw(''); setTarget(null) }
+  // 엔터 키도 전송
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSubmit()
+  }
+
+  // 예측하기 버튼
+  const handleSubmit = () => {
+    if (!inputRaw) return
+    setTarget(Number(inputRaw))
+    setSubmitted(true)
+  }
+
+  // 초기화
+  const clearInput = () => {
+    setInputRaw('')
+    setTarget(null)
+    setSubmitted(false)
+  }
+
+  // 퀵 버튼 (선택만, 자동 전송 안 함)
+  const handleQuick = (val) => {
+    setInputRaw(String(val))
+    setSubmitted(false)
+  }
 
   const quickButtons = currentPrice
     ? [
-        { label: '현재가',  value: currentPrice },
+        { label: '현재가', value: currentPrice },
         { label: '-5%',   value: Math.round(currentPrice * 0.95) },
         { label: '-10%',  value: Math.round(currentPrice * 0.90) },
         { label: '-20%',  value: Math.round(currentPrice * 0.80) },
       ]
     : []
 
-  const showResults = !!targetPrice && !!data
+  const showResults = submitted && !!targetPrice && !!data
 
   return (
     <div className="app-bg">
@@ -89,7 +112,7 @@ export default function App() {
         {/* ── 가격 입력 카드 ──────────────────────────────────────── */}
         {data && !loading && (
           <section className="card input-card">
-            {/* 히어로 텍스트 (결과 없을 때만) */}
+            {/* 히어로 (결과 없을 때만) */}
             {!showResults && (
               <div className="hero-area">
                 <div className="hero-icon">💾</div>
@@ -105,10 +128,10 @@ export default function App() {
               {showResults ? '🎯 구매 희망 가격' : '구매 희망 가격을 입력하세요'}
             </div>
 
+            {/* 입력 + 전송 버튼 한 줄 */}
             <div className="input-row">
               <div className="input-wrap">
                 <span className="input-prefix">₩</span>
-                {/* value를 raw 숫자로 유지 → 커서 깨짐 없음 */}
                 <input
                   className="price-input"
                   type="text"
@@ -116,18 +139,29 @@ export default function App() {
                   placeholder="300000"
                   value={inputRaw}
                   onChange={handleInput}
+                  onKeyDown={handleKeyDown}
                   autoFocus={!showResults}
                 />
-                {/* 포맷 표시는 입력 옆 별도 span */}
                 {inputRaw && (
                   <span className="input-formatted">
                     ({Number(inputRaw).toLocaleString()} 원)
                   </span>
                 )}
               </div>
-              {inputRaw && (
+
+              {/* X 버튼 */}
+              {inputRaw && !showResults && (
                 <button className="clear-btn" onClick={clearInput}>✕</button>
               )}
+
+              {/* 예측하기 버튼 */}
+              <button
+                className={`submit-btn ${!inputRaw ? 'disabled' : ''}`}
+                onClick={handleSubmit}
+                disabled={!inputRaw}
+              >
+                예측하기
+              </button>
             </div>
 
             {/* 퀵 버튼 */}
@@ -135,8 +169,8 @@ export default function App() {
               {quickButtons.map((b) => (
                 <button
                   key={b.label}
-                  className={`quick-btn ${targetPrice === b.value ? 'active' : ''}`}
-                  onClick={() => { setInputRaw(String(b.value)); setTarget(b.value) }}
+                  className={`quick-btn ${inputRaw === String(b.value) ? 'active' : ''}`}
+                  onClick={() => handleQuick(b.value)}
                 >
                   <span className="quick-label">{b.label}</span>
                   <span className="quick-price">₩{b.value.toLocaleString()}</span>
@@ -144,16 +178,23 @@ export default function App() {
               ))}
             </div>
 
-            {/* 안내 메시지 (입력 전) */}
+            {/* 안내 (입력 전) */}
             {!showResults && (
               <p className="input-hint">
-                ↑ 숫자를 입력하거나 아래 버튼으로 빠르게 선택하세요
+                숫자를 입력하거나 퀵 버튼 선택 후 <strong>예측하기</strong>를 누르세요
+              </p>
+            )}
+
+            {/* 결과 표시 중일 때 다시 예측 안내 */}
+            {showResults && (
+              <p className="input-hint" style={{ color: '#3b82f6' }}>
+                가격을 수정하면 결과가 초기화됩니다 — 수정 후 예측하기를 다시 눌러주세요
               </p>
             )}
           </section>
         )}
 
-        {/* ── 결과 섹션: 가격 입력 후에만 표시 ──────────────────── */}
+        {/* ── 결과 섹션 ───────────────────────────────────────────── */}
         {showResults && (
           <div className="results-area">
             {/* AI 구매 추천 */}
