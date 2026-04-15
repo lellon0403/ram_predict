@@ -5,20 +5,13 @@ import PredictionCards from './components/PredictionCards'
 import Recommendation from './components/Recommendation'
 import './App.css'
 
-// 원화 포맷 (입력 중 콤마 삽입)
-function fmtInput(val) {
-  const num = val.replace(/\D/g, '')
-  return num ? Number(num).toLocaleString() : ''
-}
-
 export default function App() {
   const [data, setData]          = useState(null)
   const [loading, setLoading]    = useState(true)
   const [error, setError]        = useState(null)
-  const [inputRaw, setInputRaw]  = useState('')
-  const [targetPrice, setTarget] = useState(null)
+  const [inputRaw, setInputRaw]  = useState('')   // 숫자 문자열 (콤마 없음)
+  const [targetPrice, setTarget] = useState(null) // Number or null
 
-  // 페이지 로드 시 예측 데이터 가져오기
   useEffect(() => {
     axios.post('/api/predict')
       .then((res) => {
@@ -33,11 +26,14 @@ export default function App() {
 
   const currentPrice = data?.history?.at(-1)?.price ?? null
 
+  // 입력: 숫자만 허용, 콤마 없이 저장
   const handleInput = (e) => {
-    const raw = e.target.value.replace(/\D/g, '')
+    const raw = e.target.value.replace(/[^0-9]/g, '')
     setInputRaw(raw)
     setTarget(raw ? Number(raw) : null)
   }
+
+  const clearInput = () => { setInputRaw(''); setTarget(null) }
 
   const quickButtons = currentPrice
     ? [
@@ -47,6 +43,8 @@ export default function App() {
         { label: '-20%',  value: Math.round(currentPrice * 0.80) },
       ]
     : []
+
+  const showResults = !!targetPrice && !!data
 
   return (
     <div className="app-bg">
@@ -87,52 +85,76 @@ export default function App() {
           </div>
         )}
 
-        {/* ── 메인 콘텐츠 ────────────────────────────────────────── */}
+        {/* ── 가격 입력 카드 ──────────────────────────────────────── */}
         {data && !loading && (
-          <>
-            {/* 가격 입력 카드 */}
-            <section className="card">
-              <h2 className="section-title">
-                <span>🎯</span> 구매 희망 가격 입력
-              </h2>
-              <p className="section-desc">
-                원하는 구매 가격을 입력하면 예측 가격과 비교하여 구매 추천 여부를 알려드려요.
-              </p>
+          <section className="card input-card">
+            {/* 히어로 텍스트 (결과 없을 때만) */}
+            {!showResults && (
+              <div className="hero-area">
+                <div className="hero-icon">💾</div>
+                <h1 className="hero-title">지금 RAM 살 때가 맞을까요?</h1>
+                <p className="hero-desc">
+                  구매 희망 가격을 입력하면 AI가 1주일·1개월·3개월 후 가격을 예측하고<br />
+                  지금 구매해야 할지 알려드립니다.
+                </p>
+              </div>
+            )}
 
-              <div className="input-row">
-                <div className="input-wrap">
-                  <span className="input-prefix">₩</span>
-                  <input
-                    className="price-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="예: 300,000"
-                    value={fmtInput(inputRaw)}
-                    onChange={handleInput}
-                  />
-                </div>
+            <div className="input-label">
+              {showResults ? '🎯 구매 희망 가격' : '구매 희망 가격을 입력하세요'}
+            </div>
+
+            <div className="input-row">
+              <div className="input-wrap">
+                <span className="input-prefix">₩</span>
+                {/* value를 raw 숫자로 유지 → 커서 깨짐 없음 */}
+                <input
+                  className="price-input"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="300000"
+                  value={inputRaw}
+                  onChange={handleInput}
+                  autoFocus={!showResults}
+                />
+                {/* 포맷 표시는 입력 옆 별도 span */}
                 {inputRaw && (
-                  <button className="clear-btn" onClick={() => { setInputRaw(''); setTarget(null) }}>
-                    ✕
-                  </button>
+                  <span className="input-formatted">
+                    ({Number(inputRaw).toLocaleString()} 원)
+                  </span>
                 )}
               </div>
+              {inputRaw && (
+                <button className="clear-btn" onClick={clearInput}>✕</button>
+              )}
+            </div>
 
-              {/* 퀵 선택 버튼 */}
-              <div className="quick-btns">
-                {quickButtons.map((b) => (
-                  <button
-                    key={b.label}
-                    className={`quick-btn ${targetPrice === b.value ? 'active' : ''}`}
-                    onClick={() => { setInputRaw(String(b.value)); setTarget(b.value) }}
-                  >
-                    <span className="quick-label">{b.label}</span>
-                    <span className="quick-price">₩{b.value.toLocaleString()}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            {/* 퀵 버튼 */}
+            <div className="quick-btns">
+              {quickButtons.map((b) => (
+                <button
+                  key={b.label}
+                  className={`quick-btn ${targetPrice === b.value ? 'active' : ''}`}
+                  onClick={() => { setInputRaw(String(b.value)); setTarget(b.value) }}
+                >
+                  <span className="quick-label">{b.label}</span>
+                  <span className="quick-price">₩{b.value.toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
 
+            {/* 안내 메시지 (입력 전) */}
+            {!showResults && (
+              <p className="input-hint">
+                ↑ 숫자를 입력하거나 아래 버튼으로 빠르게 선택하세요
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* ── 결과 섹션: 가격 입력 후에만 표시 ──────────────────── */}
+        {showResults && (
+          <div className="results-area">
             {/* AI 구매 추천 */}
             <section className="card">
               <h2 className="section-title"><span>🤖</span> AI 구매 추천</h2>
@@ -172,14 +194,14 @@ export default function App() {
               <div className="chart-legend-row">
                 <span className="legend-item blue">● 실제 가격</span>
                 <span className="legend-item orange">- - 예측 가격</span>
-                {targetPrice && <span className="legend-item green">— 목표 가격</span>}
+                <span className="legend-item green">— 목표 가격</span>
               </div>
             </section>
 
             <footer className="footer-note">
               데이터 출처: 다나와·네이버 가격 기반 실제 시세 / 예측은 참고용이며 실제 가격과 다를 수 있습니다
             </footer>
-          </>
+          </div>
         )}
       </main>
     </div>
