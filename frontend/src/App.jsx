@@ -9,8 +9,9 @@ export default function App() {
   const [data, setData]          = useState(null)
   const [loading, setLoading]    = useState(true)
   const [error, setError]        = useState(null)
-  const [inputRaw, setInputRaw]  = useState('')   // 숫자 문자열 (콤마 없음)
-  const [targetPrice, setTarget] = useState(null) // Number or null
+  const [inputRaw, setInputRaw]   = useState('')    // 숫자 문자열 (콤마 없음)
+  const [targetPrice, setTarget]  = useState(null)  // Number or null
+  const [submitted, setSubmitted] = useState(false) // 전송 버튼 눌렀는지
 
   useEffect(() => {
     axios.post('/api/predict')
