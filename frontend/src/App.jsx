@@ -235,7 +235,6 @@ export default function App() {
                   <Recommendation
                     targetPrice={targetPrice}
                     currentPrice={currentPrice}
-                    predictions={data.predictions}
                     forecast={data.forecast}
                   />
                 </section>
