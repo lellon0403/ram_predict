@@ -163,6 +163,40 @@ body {
 }
 .clear-btn:hover { background: #475569; }
 
+/* ── 예측하기 전송 버튼 ───────────────────────────────────────────────────── */
+.submit-btn {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 0 24px;
+  height: 54px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: opacity .15s, transform .1s, box-shadow .15s;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+.submit-btn:hover:not(.disabled) {
+  opacity: .92;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
+}
+
+.submit-btn:active:not(.disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn.disabled {
+  background: #1e293b;
+  color: #475569;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 /* ── 퀵 버튼 ──────────────────────────────────────────────────────────────── */
 .quick-btns {
   display: flex;
