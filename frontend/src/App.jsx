@@ -14,13 +14,24 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false) // 예측하기 버튼 눌렀는지
 
   useEffect(() => {
-    axios.post('/api/predict')
+    // React → n8n webhook → Flask → n8n → React
+    // n8n이 없을 경우 /api/predict (Flask 직접) 로 폴백
+    axios.post('/n8n/webhook/ram-predict')
       .then((res) => {
-        if (res.data.success) setData(res.data.data)
-        else setError(res.data.error)
+        // n8n이 Flask 응답을 그대로 전달: { success, data }
+        const payload = res.data?.data ?? res.data
+        if (payload?.history) setData(payload)
+        else if (res.data?.success) setData(res.data.data)
+        else throw new Error(res.data?.error ?? 'n8n 응답 형식 오류')
       })
-      .catch((e) => {
-        setError(e.message + ' — Flask 서버(localhost:5000)가 실행 중인지 확인하세요.')
+      .catch(() => {
+        // n8n 미실행 시 Flask 직접 호출로 폴백
+        axios.post('/api/predict')
+          .then((res) => {
+            if (res.data.success) setData(res.data.data)
+            else setError(res.data.error)
+          })
+          .catch((e) => setError(e.message + ' — Flask 서버(localhost:5000)가 실행 중인지 확인하세요.'))
       })
       .finally(() => setLoading(false))
   }, [])
