@@ -1,5 +1,5 @@
 """
-학습된 모델을 로드하여 1주일 / 1개월 / 3개월 뒤 가격 예측
+학습된 모델로 1주일 / 1개월 / 3개월 뒤 가격 예측 (로그 스케일 버전)
 """
 
 import os
@@ -15,8 +15,6 @@ MODEL_PATH  = os.path.join(MODEL_DIR, 'model.joblib')
 SCALER_PATH = os.path.join(MODEL_DIR, 'scaler.json')
 WINDOW_SIZE = 30
 
-
-# ── 싱글톤 캐시 ───────────────────────────────────────────────────────────────
 _model  = None
 _scaler = None
 
@@ -35,39 +33,36 @@ def _load_artifacts():
     return _model, _scaler
 
 
-# ── 예측 ──────────────────────────────────────────────────────────────────────
 def _predict_n_days(model, scaler, last_window_sc: np.ndarray, n: int) -> list:
-    """
-    슬라이딩 윈도우로 n일 뒤까지 순차 예측
-    last_window_sc: 정규화된 최근 WINDOW_SIZE 일 가격
-    반환: 원화 가격 리스트 (길이 n)
-    """
+    """로그 스케일 슬라이딩 윈도우로 n일 예측, 원화로 변환하여 반환"""
     window = last_window_sc.copy()
     results = []
-    mn, mx = scaler['min'], scaler['max']
+    log_min = scaler['log_min']
+    log_max = scaler['log_max']
+    rng     = log_max - log_min
 
     for _ in range(n):
         x = window[-WINDOW_SIZE:].reshape(1, -1)
         pred_sc = float(model.predict(x)[0])
-        pred_sc = max(0.0, min(1.0, pred_sc))          # 범위 클리핑
-        pred_price = pred_sc * (mx - mn) + mn
+        pred_sc = max(0.0, min(1.2, pred_sc))       # 범위 클리핑 (약간의 여유)
+        pred_log   = pred_sc * rng + log_min
+        pred_price = float(np.exp(pred_log))
         results.append(pred_price)
         window = np.append(window, pred_sc)
 
     return results
 
 
-# ── 공개 API ───────────────────────────────────────────────────────────────────
 def get_predictions() -> dict:
     """
     반환 구조:
     {
       "history":  [{"date": "YYYY-MM-DD", "price": 82000}, ...],
-      "forecast": [{"date": "YYYY-MM-DD", "price": 47200}, ...],   # 90일 일별
+      "forecast": [{"date": "YYYY-MM-DD", "price": 325000}, ...],  # 90일 일별
       "predictions": {
-          "1week":   {"date": "YYYY-MM-DD", "price": 47200},
-          "1month":  {"date": "YYYY-MM-DD", "price": 45800},
-          "3months": {"date": "YYYY-MM-DD", "price": 43100},
+          "1week":   {"date": "YYYY-MM-DD", "price": 325000},
+          "1month":  {"date": "YYYY-MM-DD", "price": 335000},
+          "3months": {"date": "YYYY-MM-DD", "price": 350000},
       }
     }
     """
@@ -77,14 +72,17 @@ def get_predictions() -> dict:
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date').reset_index(drop=True)
 
-    prices    = df['price'].values.astype(np.float64)
-    mn, mx    = scaler['min'], scaler['max']
-    prices_sc = (prices - mn) / (mx - mn)
+    prices  = df['price'].values.astype(np.float64)
+    log_min = scaler['log_min']
+    log_max = scaler['log_max']
+    rng     = log_max - log_min
+
+    log_prices = np.log(prices)
+    prices_sc  = (log_prices - log_min) / rng
 
     last_window = prices_sc[-WINDOW_SIZE:]
     last_date   = df['date'].iloc[-1].date()
 
-    # 90일 예측
     forecast_prices = _predict_n_days(model, scaler, last_window, 90)
     forecast_dates  = [last_date + timedelta(days=i + 1) for i in range(90)]
 
