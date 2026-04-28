@@ -1,0 +1,37 @@
+# Virtual environments
+venv/
+venv312/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+# Model binaries (optional - remove if you want to track these)
+# saved_model/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/dist/

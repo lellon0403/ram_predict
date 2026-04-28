@@ -115,6 +115,29 @@ def retrain():
     }), 202
 
 
+@app.route('/comparison', methods=['GET'])
+def comparison():
+    """예측값 vs 실제값 비교 데이터 반환 (comparison_result.csv)"""
+    import pandas as pd
+
+    path = os.path.join(os.path.dirname(__file__), 'comparison_result.csv')
+    if not os.path.exists(path):
+        return jsonify({"success": False, "error": "comparison_result.csv 가 없습니다. python comparison.py 를 먼저 실행하세요."}), 404
+
+    df = pd.read_csv(path)
+    records = df.to_dict('records')
+    mae  = round(df['error'].abs().mean())
+    mape = round(df['abs_error_pct'].mean(), 2)
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "records": records,
+            "summary": {"mae": mae, "mape": mape, "days": len(df)},
+        },
+    })
+
+
 # ── 진입점 ─────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

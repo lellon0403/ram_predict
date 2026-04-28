@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios'
 import PriceChart from './components/PriceChart'
 import PredictionCards from './components/PredictionCards'
 import Recommendation from './components/Recommendation'
+import ComparisonChart from './components/ComparisonChart'
 import './App.css'
 
 export default function App() {
@@ -11,6 +12,16 @@ export default function App() {
   const [connStatus, setConnStatus] = useState('idle')   // idle | testing | connected | error
   const [connError, setConnError]   = useState('')
   const [data, setData]             = useState(null)
+
+  // ── 비교 데이터 (예측 vs 실제) ──────────────────────────────────
+  const [compData, setCompData]         = useState(null)
+  const [showComparison, setShowComparison] = useState(false)
+
+  useEffect(() => {
+    axios.get('/api/comparison')
+      .then(res => { if (res.data?.success) setCompData(res.data.data) })
+      .catch(() => {})
+  }, [])
 
   // ── 가격 입력 ────────────────────────────────────────────────────
   const [inputRaw, setInputRaw]   = useState('')
@@ -90,12 +101,28 @@ export default function App() {
               <div className="logo-sub">삼성 DDR5 16GB · AI 선형 예측 모델</div>
             </div>
           </div>
-          {currentPrice && (
-            <div className="current-badge">
-              <span className="current-label">오늘 시세</span>
-              <span className="current-price">₩{currentPrice.toLocaleString()}</span>
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {compData && (
+              <button
+                onClick={() => setShowComparison(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8, border: '1.5px solid #2563eb',
+                  background: '#eff6ff', color: '#2563eb',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🎯 예측 정확도
+              </button>
+            )}
+            {currentPrice && (
+              <div className="current-badge">
+                <span className="current-label">오늘 시세</span>
+                <span className="current-price">₩{currentPrice.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -277,7 +304,92 @@ export default function App() {
             )}
           </>
         )}
+
       </main>
+
+      {/* ── 예측 정확도 모달 ───────────────────────────────────────── */}
+      {showComparison && compData && (
+        <div
+          onClick={() => setShowComparison(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(15,23,42,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 16,
+              width: '100%', maxWidth: 760,
+              maxHeight: '88vh', overflowY: 'auto',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
+              padding: '28px 32px',
+            }}
+          >
+            {/* 모달 헤더 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#0f172a' }}>
+                  🎯 예측 정확도 검증
+                </h2>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#64748b' }}>
+                  모델 학습 마감(2026-04-14) 이후 13일 실제 시세와 비교
+                </p>
+              </div>
+              <button
+                onClick={() => setShowComparison(false)}
+                style={{
+                  border: 'none', background: '#f1f5f9', borderRadius: 8,
+                  width: 32, height: 32, fontSize: 18, cursor: 'pointer',
+                  color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >✕</button>
+            </div>
+
+            {/* 설명 */}
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: '#475569', lineHeight: 1.7,
+                        background: '#f8fafc', borderRadius: 8, padding: '12px 16px' }}>
+              2026-04-14까지의 180일 데이터로 학습한 단일 변수 선형 회귀 모델이
+              이후 <strong>13일(4/15~4/27)</strong>을 예측한 값과 실제 다나와 시세를 비교한 결과입니다.
+            </p>
+
+            <ComparisonChart records={compData.records} summary={compData.summary} />
+
+            {/* 날짜별 상세 테이블 */}
+            <div style={{ marginTop: 24 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1e40af', marginBottom: 10 }}>
+                📋 날짜별 상세 비교
+              </h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#1e40af', color: '#fff' }}>
+                    {['날짜', '예측가', '실제가', '오차', '오차율'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {compData.records.map((r, i) => (
+                    <tr key={r.date} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                      <td style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#374151' }}>{r.date}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: '#f97316', fontWeight: 600 }}>₩{r.predicted?.toLocaleString()}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: '#2563eb', fontWeight: 600 }}>₩{r.actual?.toLocaleString()}</td>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', color: r.error < 0 ? '#dc2626' : '#16a34a', fontWeight: 600 }}>
+                        {r.error != null ? `${r.error > 0 ? '+' : ''}${r.error?.toLocaleString()}` : '-'}
+                      </td>
+                      <td style={{ padding: '7px 12px', textAlign: 'center', color: r.error_pct < 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
+                        {r.error_pct != null ? `${r.error_pct > 0 ? '+' : ''}${r.error_pct}%` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
