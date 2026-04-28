@@ -84,7 +84,7 @@ def history():
     """저장된 히스토리 데이터 반환 (모델 불필요)"""
     import pandas as pd
 
-    data_path = os.path.join(os.path.dirname(__file__), 'data', 'ram_prices.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'data', 'train', 'ram_prices.csv')
     df = pd.read_csv(data_path)
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date')
