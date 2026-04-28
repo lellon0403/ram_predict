@@ -24,7 +24,7 @@ BATCH_SIZE = 32
 LR         = 1e-3
 
 DATA_PATH  = os.path.join(os.path.dirname(__file__), '..', 'data', 'train', 'ram_prices.csv')
-MODEL_DIR  = os.path.join(os.path.dirname(__file__), '..', 'saved_model', 'polynomial')
+MODEL_DIR  = os.path.join(os.path.dirname(__file__), '..', 'saved_model', 'ram', 'polynomial')
 MODEL_PATH = os.path.join(MODEL_DIR, 'model.keras')
 META_PATH  = os.path.join(MODEL_DIR, 'scaler.json')
 
