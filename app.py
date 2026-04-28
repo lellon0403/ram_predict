@@ -61,11 +61,11 @@ def _model_trained(model_key: str = DEFAULT_MODEL) -> bool:
 @app.route('/health', methods=['GET'])
 def health():
     """서버 및 모델 상태 확인"""
+    models_status = {k: _model_trained(k) for k in PREDICTORS}
     return jsonify({
-        "status":        "ok",
-        "model_trained": _model_trained(),
-        "message":       "RAM 가격 예측 서버가 정상 동작 중입니다." if _model_trained()
-                         else "모델이 없습니다. POST /retrain 으로 학습을 시작하세요.",
+        "status":  "ok",
+        "models":  models_status,
+        "message": "RAM 가격 예측 서버가 정상 동작 중입니다.",
     })
 
 
@@ -74,17 +74,19 @@ def predict():
     """
     예측 결과 반환
 
-    Request Body (선택, 현재는 무시 – 추후 파라미터 추가 가능)
+    Request Body
     ────────────────────────────────────────────────────────────
-    {}
+    { "model": "lstm7" }   # linear / polynomial / lstm / lstm7 (기본값: lstm7)
 
     Response
     ────────
     {
       "success": true,
+      "model":   "lstm7",
+      "mae":     3810,
       "data": {
         "history":  [{"date": "YYYY-MM-DD", "price": 82000}, ...],
-        "forecast": [{"date": "YYYY-MM-DD", "price": 47200}, ...],   // 90일 일별
+        "forecast": [{"date": "YYYY-MM-DD", "price": 47200}, ...],
         "predictions": {
           "1week":   {"date": "YYYY-MM-DD", "price": 47200},
           "1month":  {"date": "YYYY-MM-DD", "price": 45800},
@@ -93,16 +95,31 @@ def predict():
       }
     }
     """
-    if not _model_trained():
+    body      = request.get_json(silent=True) or {}
+    model_key = body.get('model', DEFAULT_MODEL)
+
+    if model_key not in PREDICTORS:
         return jsonify({
             "success": False,
-            "error": "모델이 학습되지 않았습니다. POST /retrain 을 먼저 실행하세요.",
+            "error": f"알 수 없는 모델: {model_key}. 가능한 값: {list(PREDICTORS.keys())}",
+        }), 400
+
+    if not _model_trained(model_key):
+        return jsonify({
+            "success": False,
+            "error": f"{model_key} 모델이 학습되지 않았습니다.",
         }), 503
 
     try:
-        from model.predictor import get_predictions
-        result = get_predictions()
-        return jsonify({"success": True, "data": result})
+        import importlib
+        predictor = importlib.import_module(PREDICTORS[model_key])
+        result = predictor.get_predictions()
+        return jsonify({
+            "success": True,
+            "model":   model_key,
+            "mae":     MODEL_MAE[model_key],
+            "data":    result,
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
