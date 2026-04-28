@@ -19,8 +19,8 @@ from datetime import date, timedelta
 BASE_DIR    = os.path.dirname(__file__)
 DATA_PATH   = os.path.join(BASE_DIR, 'data', 'train', 'ram_prices.csv')
 ACTUAL_PATH = os.path.join(BASE_DIR, 'data', 'actual', 'ram_prices_actual_apr2026.csv')
-MODEL_PATH  = os.path.join(BASE_DIR, 'saved_model', 'model.keras')
-META_PATH   = os.path.join(BASE_DIR, 'saved_model', 'scaler.json')
+MODEL_PATH  = os.path.join(BASE_DIR, 'saved_model', 'ram', 'linear', 'model.keras')
+META_PATH   = os.path.join(BASE_DIR, 'saved_model', 'ram', 'linear', 'scaler.json')
 OUTPUT_PATH = os.path.join(BASE_DIR, 'comparison_result.csv')
 
 
