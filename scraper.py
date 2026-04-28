@@ -10,20 +10,23 @@
 """
 
 import requests
+from bs4 import BeautifulSoup
 import pandas as pd
-import json
+import re
 import time
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# ── 다나와 제품 코드 설정 ─────────────────────────────────────────
-# 다나와 제품 URL: https://prod.danawa.com/info/?pcode=XXXXXXX
-# 아래 pcode 는 각 제품 페이지 URL에서 확인 후 채워주세요
+# ── 데이터 수집 기준일 (RAM 과 동일하게 고정) ──────────────────────────────
+END_DATE   = datetime(2026, 4, 14)
+START_DATE = END_DATE - timedelta(days=180)   # 2025-10-17
+
+# ── 다나와 제품 코드 ────────────────────────────────────────────────────────
 PRODUCTS = {
     'ram': {
         'name':  '삼성 DDR5-5600 16GB',
-        'pcode': '',          # ← 다나와 URL의 pcode 값
+        'pcode': '',           # RAM 은 기존 CSV 사용
         'csv':   'data/ram_prices.csv',
     },
     'cpu': {
@@ -48,46 +51,72 @@ PRODUCTS = {
     },
 }
 
-# 데이터 수집 기준일 (RAM과 동일하게 고정)
-END_DATE   = datetime(2026, 4, 14)
-START_DATE = END_DATE - timedelta(days=180)  # 2025-10-17
-
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                   'AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/124.0.0.0 Safari/537.36',
     'Referer': 'https://prod.danawa.com/',
+    'Accept-Language': 'ko-KR,ko;q=0.9',
 }
 
 
 def fetch_price_history(pcode: str) -> list[dict]:
-    """다나와 가격 히스토리 API 호출 (2025-10-17 ~ 2026-04-14 고정)"""
-    url = 'https://pricehistory.danawa.com/api/pricehistory/list'
-    params = {
-        'productCode': pcode,
-        'startDate':   START_DATE.strftime('%Y%m%d'),
-        'endDate':     END_DATE.strftime('%Y%m%d'),
-        'marketType':  'A',   # A = 전체
+    """다나와 가격 히스토리 AJAX 엔드포인트 호출"""
+    url = 'https://prod.danawa.com/info/dprice/ajax/getProductPriceHistoryList.ajax.php'
+    data = {
+        'pcode':     pcode,
+        'startDate': START_DATE.strftime('%Y-%m-%d'),
+        'endDate':   END_DATE.strftime('%Y-%m-%d'),
+        'page':      1,
     }
 
-    resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
+    resp = requests.post(url, data=data, headers=HEADERS, timeout=15)
     resp.raise_for_status()
-    data = resp.json()
 
+    result = resp.json()
     records = []
-    for item in data.get('priceHistoryList', []):
-        date  = item.get('date', '')
-        price = item.get('minPrice', 0)
+
+    for item in result.get('priceHistoryList', result.get('list', [])):
+        date  = item.get('date') or item.get('priceDate') or ''
+        price = item.get('minPrice') or item.get('price') or 0
         if date and price:
-            records.append({
-                'date':  f'{date[:4]}-{date[4:6]}-{date[6:]}',
-                'price': int(price),
-            })
+            # 날짜 포맷 통일 (YYYYMMDD or YYYY-MM-DD)
+            if len(date) == 8:
+                date = f'{date[:4]}-{date[4:6]}-{date[6:]}'
+            records.append({'date': date, 'price': int(str(price).replace(',', ''))})
 
     return sorted(records, key=lambda x: x['date'])
 
 
-def save_csv(records: list[dict], csv_path: str, part_name: str):
+def fetch_price_from_page(pcode: str) -> list[dict]:
+    """페이지 HTML 에서 가격 히스토리 JSON 추출 (폴백)"""
+    url = f'https://prod.danawa.com/info/?pcode={pcode}'
+    resp = requests.get(url, headers=HEADERS, timeout=15)
+    soup = BeautifulSoup(resp.text, 'html.parser')
+
+    records = []
+
+    # script 태그에서 가격 히스토리 JSON 탐색
+    for script in soup.find_all('script'):
+        text = script.string or ''
+        # 날짜+가격 배열 패턴 탐색
+        match = re.search(r'\[(\s*\{["\']date["\'].*?\}[\s,]*)+\]', text, re.DOTALL)
+        if match:
+            try:
+                import json
+                data = json.loads(match.group(0))
+                for item in data:
+                    date  = item.get('date', '')
+                    price = item.get('price') or item.get('minPrice') or 0
+                    if date and price:
+                        records.append({'date': date, 'price': int(price)})
+            except Exception:
+                pass
+
+    return sorted(records, key=lambda x: x['date'])
+
+
+def save_csv(records: list[dict], csv_path: str):
     """기존 CSV 와 병합 후 저장 (중복 날짜 제거)"""
     path = Path(csv_path)
     df_new = pd.DataFrame(records)
@@ -105,25 +134,39 @@ def save_csv(records: list[dict], csv_path: str, part_name: str):
 
 
 def scrape(part_key: str):
-    info = PRODUCTS[part_key]
+    info  = PRODUCTS[part_key]
     pcode = info['pcode']
 
     if not pcode:
-        print(f'\n[{part_key.upper()}] pcode 가 비어 있습니다.')
-        print(f'  다나와에서 "{info["name"]}" 검색 후')
-        print(f'  제품 페이지 URL의 pcode=XXXXXXX 값을 scraper.py PRODUCTS[\'{part_key}\'][\'pcode\'] 에 입력하세요.')
+        print(f'\n[{part_key.upper()}] pcode 가 비어 있어 건너뜁니다.')
         return
 
     print(f'\n[{part_key.upper()}] {info["name"]} 수집 중...')
+    print(f'  기간: {START_DATE.strftime("%Y-%m-%d")} ~ {END_DATE.strftime("%Y-%m-%d")}')
+
+    records = []
+
+    # 1차: AJAX 엔드포인트 시도
     try:
         records = fetch_price_history(pcode)
-        if not records:
-            print('  데이터 없음 — pcode 를 확인하세요.')
-            return
-        print(f'  {records[0]["date"]} ~ {records[-1]["date"]}  총 {len(records)}일')
-        save_csv(records, info['csv'], info['name'])
     except Exception as e:
-        print(f'  오류: {e}')
+        print(f'  AJAX 실패 ({e}) → 페이지 파싱 시도...')
+
+    # 2차: 페이지 HTML 파싱 폴백
+    if not records:
+        try:
+            records = fetch_price_from_page(pcode)
+        except Exception as e:
+            print(f'  페이지 파싱도 실패: {e}')
+
+    if not records:
+        print('  데이터를 가져오지 못했습니다.')
+        print('  → 다나와 제품 페이지에서 "가격추이" 탭 → 개발자도구(F12) → Network 탭에서')
+        print('    실제 API 주소를 확인한 후 fetch_price_history() 의 url 을 수정해 주세요.')
+        return
+
+    print(f'  {records[0]["date"]} ~ {records[-1]["date"]}  총 {len(records)}일')
+    save_csv(records, info['csv'])
 
 
 def main():
