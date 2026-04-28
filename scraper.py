@@ -27,23 +27,23 @@ PRODUCTS = {
         'csv':   'data/ram_prices.csv',
     },
     'cpu': {
-        'name':  'AMD Ryzen 5 9600X',
-        'pcode': '',          # ← 다나와 URL의 pcode 값
+        'name':  'AMD 라이젠5 9600X (그래니트 릿지) 멀티팩',
+        'pcode': '62794079',
         'csv':   'data/cpu_prices.csv',
     },
     'gpu': {
-        'name':  'MSI RTX 5070',
-        'pcode': '',          # ← 다나와 URL의 pcode 값
+        'name':  'MSI 지포스 RTX 5070 게이밍 트리오 OC 화이트 D7 12GB',
+        'pcode': '78102347',
         'csv':   'data/gpu_prices.csv',
     },
     'mb': {
-        'name':  'MSI MAG B650 WIFI',
-        'pcode': '',          # ← 다나와 URL의 pcode 값
+        'name':  'MSI MAG B650M 박격포 WIFI',
+        'pcode': '17971187',
         'csv':   'data/mb_prices.csv',
     },
     'ssd': {
-        'name':  'SK Hynix P44 Pro 1TB',
-        'pcode': '',          # ← 다나와 URL의 pcode 값
+        'name':  'SK하이닉스 Platinum P41 M.2 NVMe 1TB',
+        'pcode': '17001050',
         'csv':   'data/ssd_prices.csv',
     },
 }
