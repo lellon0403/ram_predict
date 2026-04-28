@@ -32,7 +32,7 @@ PRODUCTS = {
         'csv':   'data/cpu_prices.csv',
     },
     'gpu': {
-        'name':  'RTX 4070 Super',
+        'name':  'MSI RTX 5070',
         'pcode': '',          # ← 다나와 URL의 pcode 값
         'csv':   'data/gpu_prices.csv',
     },
@@ -48,6 +48,10 @@ PRODUCTS = {
     },
 }
 
+# 데이터 수집 기준일 (RAM과 동일하게 고정)
+END_DATE   = datetime(2026, 4, 14)
+START_DATE = END_DATE - timedelta(days=180)  # 2025-10-17
+
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                   'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -56,16 +60,13 @@ HEADERS = {
 }
 
 
-def fetch_price_history(pcode: str, days: int = 180) -> list[dict]:
-    """다나와 가격 히스토리 API 호출"""
-    end   = datetime.today()
-    start = end - timedelta(days=days)
-
+def fetch_price_history(pcode: str) -> list[dict]:
+    """다나와 가격 히스토리 API 호출 (2025-10-17 ~ 2026-04-14 고정)"""
     url = 'https://pricehistory.danawa.com/api/pricehistory/list'
     params = {
         'productCode': pcode,
-        'startDate':   start.strftime('%Y%m%d'),
-        'endDate':     end.strftime('%Y%m%d'),
+        'startDate':   START_DATE.strftime('%Y%m%d'),
+        'endDate':     END_DATE.strftime('%Y%m%d'),
         'marketType':  'A',   # A = 전체
     }
 
