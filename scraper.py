@@ -25,27 +25,27 @@ PRODUCTS = {
     'ram': {
         'name':  '삼성 DDR5-5600 16GB',
         'pcode': '',           # RAM 은 기존 CSV 사용
-        'csv':   'data/ram_prices.csv',
+        'csv':   'data/train/ram_prices.csv',
     },
     'cpu': {
         'name':  'AMD 라이젠5 9600X (그래니트 릿지) 멀티팩',
         'pcode': '62794079',
-        'csv':   'data/cpu_prices.csv',
+        'csv':   'data/train/cpu_prices.csv',
     },
     'gpu': {
         'name':  'MSI 지포스 RTX 5070 게이밍 트리오 OC 화이트 D7 12GB',
         'pcode': '78102347',
-        'csv':   'data/gpu_prices.csv',
+        'csv':   'data/train/gpu_prices.csv',
     },
     'mb': {
         'name':  'MSI MAG B650M 박격포 WIFI',
         'pcode': '17971187',
-        'csv':   'data/mb_prices.csv',
+        'csv':   'data/train/mb_prices.csv',
     },
     'ssd': {
         'name':  'SK하이닉스 Platinum P41 M.2 NVMe 1TB',
         'pcode': '17001050',
-        'csv':   'data/ssd_prices.csv',
+        'csv':   'data/train/ssd_prices.csv',
     },
 }
 
