@@ -24,7 +24,7 @@ from datetime import date, timedelta
 #######
 # 경로 설정
 #######
-MODEL_DIR   = os.path.join(os.path.dirname(__file__), '..', 'saved_model')
+MODEL_DIR   = os.path.join(os.path.dirname(__file__), '..', 'saved_model', 'linear')
 DATA_PATH   = os.path.join(os.path.dirname(__file__), '..', 'data', 'ram_prices.csv')
 MODEL_PATH  = os.path.join(MODEL_DIR, 'model.keras')
 META_PATH   = os.path.join(MODEL_DIR, 'scaler.json')

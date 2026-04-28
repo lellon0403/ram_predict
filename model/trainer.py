@@ -28,7 +28,7 @@ BATCH_SIZE = 32        # 배치 크기
 LR         = 1e-3      # 학습률 (Adam optimizer)
 
 DATA_PATH  = os.path.join(os.path.dirname(__file__), '..', 'data', 'ram_prices.csv')
-MODEL_DIR  = os.path.join(os.path.dirname(__file__), '..', 'saved_model')
+MODEL_DIR  = os.path.join(os.path.dirname(__file__), '..', 'saved_model', 'linear')
 MODEL_PATH = os.path.join(MODEL_DIR, 'model.keras')
 META_PATH  = os.path.join(MODEL_DIR, 'scaler.json')
 
