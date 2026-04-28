@@ -63,7 +63,7 @@ def fetch_price_history(pcode: str) -> list[dict]:
     timestamp = int(time.time() * 1000)
     url = (
         f'https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php'
-        f'?productCode={pcode}&period=1&_={timestamp}'
+        f'?productCode={pcode}&period=6&_={timestamp}'
     )
 
     resp = requests.get(url, headers=HEADERS, timeout=15)
