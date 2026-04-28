@@ -10,9 +10,7 @@
 """
 
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
-import re
 import time
 import argparse
 from datetime import datetime, timedelta
@@ -55,63 +53,52 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                   'AppleWebKit/537.36 (KHTML, like Gecko) '
                   'Chrome/124.0.0.0 Safari/537.36',
-    'Referer': 'https://prod.danawa.com/',
-    'Accept-Language': 'ko-KR,ko;q=0.9',
+    'Referer': 'https://danawa.com',
+    'Host':    'prod.danawa.com',
 }
 
 
 def fetch_price_history(pcode: str) -> list[dict]:
-    """다나와 가격 히스토리 AJAX 엔드포인트 호출"""
-    url = 'https://prod.danawa.com/info/dprice/ajax/getProductPriceHistoryList.ajax.php'
-    data = {
-        'pcode':     pcode,
-        'startDate': START_DATE.strftime('%Y-%m-%d'),
-        'endDate':   END_DATE.strftime('%Y-%m-%d'),
-        'page':      1,
-    }
+    """다나와 가격 히스토리 API 호출"""
+    timestamp = int(time.time() * 1000)
+    url = (
+        f'https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php'
+        f'?productCode={pcode}&period=1&_={timestamp}'
+    )
 
-    resp = requests.post(url, data=data, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
-
-    result = resp.json()
-    records = []
-
-    for item in result.get('priceHistoryList', result.get('list', [])):
-        date  = item.get('date') or item.get('priceDate') or ''
-        price = item.get('minPrice') or item.get('price') or 0
-        if date and price:
-            # 날짜 포맷 통일 (YYYYMMDD or YYYY-MM-DD)
-            if len(date) == 8:
-                date = f'{date[:4]}-{date[4:6]}-{date[6:]}'
-            records.append({'date': date, 'price': int(str(price).replace(',', ''))})
-
-    return sorted(records, key=lambda x: x['date'])
-
-
-def fetch_price_from_page(pcode: str) -> list[dict]:
-    """페이지 HTML 에서 가격 히스토리 JSON 추출 (폴백)"""
-    url = f'https://prod.danawa.com/info/?pcode={pcode}'
     resp = requests.get(url, headers=HEADERS, timeout=15)
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    resp.raise_for_status()
+    data = resp.json()
 
     records = []
 
-    # script 태그에서 가격 히스토리 JSON 탐색
-    for script in soup.find_all('script'):
-        text = script.string or ''
-        # 날짜+가격 배열 패턴 탐색
-        match = re.search(r'\[(\s*\{["\']date["\'].*?\}[\s,]*)+\]', text, re.DOTALL)
-        if match:
+    # 응답 구조: 월별 키로 구성된 dict
+    for month_key, month_data in data.items():
+        if not isinstance(month_data, dict):
+            continue
+        price_list = month_data.get('result', [])
+        for item in price_list:
+            full_date = item.get('Fulldate') or item.get('fullDate') or ''
+            price     = item.get('minPrice') or item.get('price') or 0
+
+            if not full_date or not price:
+                continue
+
+            # YY-MM-DD → YYYY-MM-DD 변환
+            if len(full_date) == 8:   # YY-MM-DD
+                full_date = '20' + full_date
+
             try:
-                import json
-                data = json.loads(match.group(0))
-                for item in data:
-                    date  = item.get('date', '')
-                    price = item.get('price') or item.get('minPrice') or 0
-                    if date and price:
-                        records.append({'date': date, 'price': int(price)})
-            except Exception:
-                pass
+                dt = datetime.strptime(full_date, '%Y-%m-%d')
+            except ValueError:
+                continue
+
+            # 수집 기간 필터 (2025-10-17 ~ 2026-04-14)
+            if START_DATE <= dt <= END_DATE:
+                records.append({
+                    'date':  full_date,
+                    'price': int(str(price).replace(',', '')),
+                })
 
     return sorted(records, key=lambda x: x['date'])
 
@@ -144,25 +131,14 @@ def scrape(part_key: str):
     print(f'\n[{part_key.upper()}] {info["name"]} 수집 중...')
     print(f'  기간: {START_DATE.strftime("%Y-%m-%d")} ~ {END_DATE.strftime("%Y-%m-%d")}')
 
-    records = []
-
-    # 1차: AJAX 엔드포인트 시도
     try:
         records = fetch_price_history(pcode)
     except Exception as e:
-        print(f'  AJAX 실패 ({e}) → 페이지 파싱 시도...')
-
-    # 2차: 페이지 HTML 파싱 폴백
-    if not records:
-        try:
-            records = fetch_price_from_page(pcode)
-        except Exception as e:
-            print(f'  페이지 파싱도 실패: {e}')
+        print(f'  오류: {e}')
+        return
 
     if not records:
-        print('  데이터를 가져오지 못했습니다.')
-        print('  → 다나와 제품 페이지에서 "가격추이" 탭 → 개발자도구(F12) → Network 탭에서')
-        print('    실제 API 주소를 확인한 후 fetch_price_history() 의 url 을 수정해 주세요.')
+        print('  해당 기간 데이터가 없습니다.')
         return
 
     print(f'  {records[0]["date"]} ~ {records[-1]["date"]}  총 {len(records)}일')
