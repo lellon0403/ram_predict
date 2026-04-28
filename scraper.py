@@ -58,49 +58,85 @@ HEADERS = {
 }
 
 
-def fetch_price_history(pcode: str) -> list[dict]:
-    """다나와 가격 히스토리 API 호출"""
+def parse_date(raw: str) -> datetime | None:
+    """YY-MM-DD 또는 YY-MM → datetime 변환"""
+    raw = '20' + raw  # 26-04-14 → 2026-04-14
+    for fmt in ('%Y-%m-%d', '%Y-%m'):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            pass
+    return None
+
+
+def fetch_raw(pcode: str) -> dict:
+    """다나와 가격 히스토리 전체 API 호출"""
     timestamp = int(time.time() * 1000)
     url = (
         f'https://prod.danawa.com/info/ajax/getProductPriceList.ajax.php'
-        f'?productCode={pcode}&period=6&_={timestamp}'
+        f'?productCode={pcode}&period=1&_={timestamp}'
     )
-
     resp = requests.get(url, headers=HEADERS, timeout=15)
     resp.raise_for_status()
-    data = resp.json()
+    return resp.json()
 
+
+def fetch_price_history(pcode: str) -> list[dict]:
+    """주간(3개월) + 월간(12개월) 데이터 합산 후 일별 보간"""
+    data = fetch_raw(pcode)
+
+    # 주간 데이터 (key="3"): Fulldate = YY-MM-DD
+    weekly = []
+    for item in data.get('3', {}).get('result', []):
+        dt = parse_date(item.get('Fulldate', ''))
+        price = item.get('minPrice', 0)
+        if dt and price:
+            weekly.append((dt, int(price)))
+
+    # 월간 데이터 (key="12"): date = YY-MM → 해당 월 1일로 처리
+    monthly = []
+    for item in data.get('12', {}).get('result', []):
+        dt = parse_date(item.get('date', ''))
+        price = item.get('minPrice', 0)
+        if dt and price:
+            monthly.append((dt, int(price)))
+
+    # 월간 + 주간 합산 → 중복 제거 (주간 우선)
+    combined = {dt: price for dt, price in monthly}
+    for dt, price in weekly:
+        combined[dt] = price  # 주간이 더 정확하므로 덮어씀
+
+    anchor_points = sorted(combined.items())
+    if not anchor_points:
+        return []
+
+    # 앵커 포인트 사이를 일별 선형 보간
     records = []
+    for i in range(len(anchor_points) - 1):
+        dt_start, p_start = anchor_points[i]
+        dt_end,   p_end   = anchor_points[i + 1]
+        days = (dt_end - dt_start).days
 
-    # 응답 구조: 월별 키로 구성된 dict
-    for month_key, month_data in data.items():
-        if not isinstance(month_data, dict):
-            continue
-        price_list = month_data.get('result', [])
-        for item in price_list:
-            full_date = item.get('Fulldate') or item.get('fullDate') or ''
-            price     = item.get('minPrice') or item.get('price') or 0
-
-            if not full_date or not price:
-                continue
-
-            # YY-MM-DD → YYYY-MM-DD 변환
-            if len(full_date) == 8:   # YY-MM-DD
-                full_date = '20' + full_date
-
-            try:
-                dt = datetime.strptime(full_date, '%Y-%m-%d')
-            except ValueError:
-                continue
-
-            # 수집 기간 필터 (2025-10-17 ~ 2026-04-14)
+        for d in range(days):
+            dt = dt_start + timedelta(days=d)
             if START_DATE <= dt <= END_DATE:
-                records.append({
-                    'date':  full_date,
-                    'price': int(str(price).replace(',', '')),
-                })
+                price = int(p_start + (p_end - p_start) * d / days)
+                records.append({'date': dt.strftime('%Y-%m-%d'), 'price': price})
 
-    return sorted(records, key=lambda x: x['date'])
+    # 마지막 앵커 포인트 추가
+    last_dt, last_price = anchor_points[-1]
+    if START_DATE <= last_dt <= END_DATE:
+        records.append({'date': last_dt.strftime('%Y-%m-%d'), 'price': last_price})
+
+    # 중복 제거 및 정렬
+    seen = set()
+    unique = []
+    for r in sorted(records, key=lambda x: x['date']):
+        if r['date'] not in seen:
+            seen.add(r['date'])
+            unique.append(r)
+
+    return unique
 
 
 def save_csv(records: list[dict], csv_path: str):
