@@ -4,10 +4,17 @@ React / n8n 에서 POST 요청으로 예측 결과를 수신
 
 Endpoints
 ─────────
-POST /predict           전체 예측 결과 (history + forecast + point predictions)
+POST /predict           전체 예측 결과 (model 파라미터로 모델 선택)
 GET  /history           저장된 히스토리 데이터만 반환
 POST /retrain           모델 재학습 트리거 (백그라운드)
 GET  /health            서버 상태 확인
+
+모델 선택 파라미터 (POST body: {"model": "lstm7"})
+─────────────────
+  linear      선형 회귀       MAE ±10,821원
+  polynomial  다항 회귀       MAE ±18,816원
+  lstm        LSTM 30일      MAE  ±4,672원
+  lstm7       LSTM  7일      MAE  ±3,810원  ← 기본값
 """
 
 import os
@@ -20,11 +27,32 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})   # React / n8n 연동 위해 전체 허용
 
 
+# ── 모델 선택 매핑 ─────────────────────────────────────────────────────────────
+PREDICTORS = {
+    'linear':     'model.predictor',
+    'polynomial': 'model.predictor_poly',
+    'lstm':       'model.predictor_lstm',
+    'lstm7':      'model.predictor_lstm7',
+}
+DEFAULT_MODEL = 'lstm7'
+
+MODEL_MAE = {
+    'linear':     10821,
+    'polynomial': 18816,
+    'lstm':       4672,
+    'lstm7':      3810,
+}
+
+
 # ── 헬퍼: 모델 존재 여부 확인 ──────────────────────────────────────────────────
-def _model_trained() -> bool:
-    model_path = os.path.join(
-        os.path.dirname(__file__), 'saved_model', 'ram', 'linear', 'model.keras'
-    )
+def _model_trained(model_key: str = DEFAULT_MODEL) -> bool:
+    paths = {
+        'linear':     ('saved_model', 'ram', 'linear',     'model.keras'),
+        'polynomial': ('saved_model', 'ram', 'polynomial', 'model.keras'),
+        'lstm':       ('saved_model', 'ram', 'lstm',       'model.keras'),
+        'lstm7':      ('saved_model', 'ram', 'lstm7',      'model.keras'),
+    }
+    model_path = os.path.join(os.path.dirname(__file__), *paths.get(model_key, paths['lstm7']))
     return os.path.exists(model_path)
 
 
